@@ -1,0 +1,346 @@
+
+
+      FILES:
+
+    (devices.h devices.c prima nel main le fa sh0t poi le mette nel 
+    file che si decide)
+    main.c
+    interrupt.c
+    syscall.c
+    scheduler.c
+    programTrap.c
+    tlbException.c
+    localFunc.c <-- __kern_kill, __kern_P, __kern_V
+    
+    sh0t: syscall/dispatcher.c interruptHandler/dispatcher.c syscall8.c main.c
+    stack: scheduler.c,kern_kill.c, syscall5.c testPassingUp per le syscalls >=9
+    alex:  timerInterruptHandler, syscall6, syscall7
+    pie: syscall1, syscall2, syscall3, syscall4,__kern_P, __kern_V
+    
+    
+
+----------------------------------------------------------
+varibili globali
+        inKernelMode
+        softBlockCount
+        procCount
+        readyQueue
+	lastPseudoClockTick=0
+il nostro main:
+        - popolare le aree riservate della rom
+                mettendo per ogni blocco il processor state che mi serve
+                per gestire quella cosa.
+        - inizializzazione (init tcb e init smd)
+        - inizializzo le vcariabili globali del nucleo: 
+                int procCount,softblockCount
+                
+                pqueue readyQueue 
+                tcb_t* currProcess
+        - inizializzazione dei semafori, uno per device, quindi ho un array di
+        semafori di 8x9(i terminali hanno 2 righe dell'array (e.g: dev[8][9]))
+        - istanziare il processo test e metterlo nella ready queue
+        KernelMode=0
+	- chiamare lo scheduler
+
+SCHED.C
+        //HERE WILL HAPPEN THE CONTEXT SWITCH
+        ci sara' la funzione schedule che verra' richiamata dal tick del timer.
+        rimetto il thread block nella ready queue prendendolo da current proc.
+
+        //chi cazzo aggiorna il tempo di esecuzione del processo???
+
+        //DEADLOCK DETECTION
+        if(emptyThreadPQ(&readyqueue))
+        {
+                if(procCount==0)
+                        call HALT;
+                else if(procCount  >0 && softblockCount ==0)
+                        //DEADLOCK BASTARDO
+                        call PANIC;
+                else if(procCount>0 && softblockCount > 0)
+                {
+                        inKernelMode = 0;
+                        //abilita interrupt
+                        setSTATUS(getSTATUS() | INTERRUPTBIT);
+                        while(1)
+                            ;
+                }
+        }
+        
+        if ((CurrentProc->remainingTime < DEFCYCLES) && !splitProcTime) /* fase del splitProcTime: deve essere ripreso il vecchio CurrentProc. non tocchiamo il timer perche' ci pensa gia' l'interrupt handler*/
+        {
+            qui del codice che dice di NON fare il context switch
+        }
+        
+        if(!preempted){ //che cazzo e' preempted???? se e' semanticamente uguale alla mia splitProcTime, bisogna e dico BISOGNA togliere la riga 87 (di questo file)
+	        if (! isKilled(currentProc)){ // currentProc != NULL
+	             STOREDST currentProc->state; //copia da oldarea nell'argomento dati
+	                                        //nel threadBlock del suddetto processo. 
+	             if (! isblocked(currentProc)) //currentProc->semadd != NULL 
+	                    insertThreadPQ(currentProc,readyQueue);
+		     currentProc->timeofcpu+=TOD-initTime;
+	        }
+	        currentProc = outThreadPQ(&readyqueue);
+		initTime = TOD;
+		if(currentProc->remainingTime<TimeToWrite){
+			setto il timer a CurrentProc->remainigTime;
+		}
+		else
+			preempted=1;
+	}
+	else{
+		preempted=0;
+		imposto timer a currentproc->remainigTime-TimeToWrite;
+	}
+
+	inKernelMode = 0;
+        LDST currentProc->stato.
+
+PART OF EXECPTION.c SYSCALL.c
+        funzione __sysc_handler() definita come segue:
+
+        if(inKernelMode == 1)
+                call PANIC;
+        else
+                inKernelMode=1;
+
+       if(a0>=1 && a0 <=8 ){
+		if(OldArea.Mode==KernelMode){ 
+                       chiamo la system call relativa,
+       		} 
+
+		else {
+                	//User mode process has called a syscall < 9 not allowed!
+                	       /*
+                	 SIMULARE UNA PROGRAM TRAP EXCEPTION
+                	 Copiare lo stato del processore da SYs/Bp Old Area a Pgm Old
+               		 Area. Impostare Cause.ExcCode=RI. 
+                        call PgmTrap ExceptionHandler                 
+                 	*/
+       
+      		__pgmtrap__handler();
+       		}
+     	}                  
+        
+	else {			/*	nel caso sia >=9 allora chiamo*/
+                       testPassingUp.
+                
+	        if(testPassingUp==SUCCESS){
+	                Prendo dalla old area della rom e scrivo nella old area del tcb.
+	                Faccio passing up: LDST currentProc->newArea.
+	
+	        }       
+	        	else{
+	                __kern_kill(currentProc);
+	                //La SYS2 sara' probabilmente una wrapper a questa _kill.
+        		}
+	}
+        
+	inKernelMode = 0;
+        //ora nella old area ho ANCHE il valore di ritorno settato dalla syscall
+        //lo controllo per vedere se uccidere il processo
+        if(oldarea.v0<0)
+                __kern_kill(currProc);
+        //in questo punto ritorneranno tutte le syscall NON BLOCCANTI
+        //e quindi faccio un ret from bp/excp
+        oldarea.pc+=WORDSIZE;
+        LDST OLDAREA;
+
+testPassingUp:
+        if(!currProc->sys5flag)
+                __kern_kill(currProc);
+
+SYS1:
+        newproc=allocTcb();
+        if newproc==NULL
+                //caso di errore, non ho risorse disponibili
+                oldarea.v0=-1;
+        else
+
+                in a1 abbiamo l'indirizzo fisico di uno stato del processore
+                       e in a2
+                una priorita';
+                newproc->priority=a2;
+                newproc->state=*a1; //Copio i dati dall'indirizzo 
+                                                //messo in
+                                                //a1.(IN a1 CI STA UN INDIRIZZO)
+
+		newproc->timeofcpu=0;
+                metto nella ready queue newproc.
+                procCount++;
+                
+
+SYS2:
+        __kern_kill(currProc) 
+
+
+SYS3:
+	/*codice della __kern_V*/
+        fa una V su di un semaforo presente nel registro a1(indirizzo
+                        dell'intero),
+	tcb_t unblocked = NULL;
+        sem=*a1;
+        sem->val++;
+        if(sem->val>0){
+                unblocked=pushreadyqueue(removeBlocked(sem));
+                softBlocCount--;        
+                }
+	return unblocked;
+
+SYS4:
+        fa una P su di un semaforo presente nel registro a1(indirizzo
+
+                        dell'intero),
+        sem=*a1;
+        sem->val--;
+        if(sem->val<0)
+        {
+                /*outThreadPQ(readyqueue,currentProc);   Questa istruzione e' errata perche' un
+processo che e' il
+                                                         currentProc non puo' appartenere alla readyQueue */
+                addBlocked(sem,currentProc);
+                softBlockCount++;
+                scheduler();
+        }
+        
+
+SYS5:
+        if(currentProc->sys5flag[*(oldArea->a1])
+                __kern_kill(currentProc);
+        currProc->sys5flag[*a1]=true;		//NON *a1 m,a Oldarea....
+        currProc->sys5OldArea[*a1]=a2;
+        currProc->sys5NewArea[*a1]=a3;        
+
+SYS6:
+        OldArea.v0=currentProc->timeofcpu;
+
+SYS7:
+        //Eseguiamo Una P senza chiamare al SYS4 ( siamo sicuri che non si possa fare :( )
+                
+        PseudoClockTImer->val--;
+        if(PseudoClockTimer->val<0){ //IN TEORIA QUESTO TEST NON VA FATTO PERCHE' QUESTA SYSCALL
+                           // DOVREBBE SEMPRE ESSERE BLOCCANTE
+                addBlocked(PSeudoClockTimer, currProc);
+                softBlockCount++;
+                scheduler();        
+        }
+
+SYS8:
+        //test sui parametri di input della SYS8
+        //in caso di test negativo dobbiamo killare = SI 
+
+        LineNumber=*a1;
+        DevNumber=*a2;
+        READFL=*a3;
+        if(LineNumber<8) //Se il device non e' un terminale non devo considerare il terzo flag
+                READFL=0;
+        else
+                READFL=*a3;
+        dev[LineNumber+READFL][DevNumber]->val--;
+                if(dev[LineNumber+READFL][DevNumber]<0){
+                        addBlocked(dev[LineNumber+READFL][DevNumber], CurrentProc);
+                        //Dobbiamo far capire allo scheduler che: il processo precedentemente in esecuzione
+                        //e' stato BLOCCATO e quindi non deve rimettere CurrentProc nella ReadyQueue
+altrimenti
+                        //avremmo un processo in piu' di una coda
+                        //Questo andrebbe fatto ogni qual volta e' stata fatta una chiamata bloccante.
+                        scheduler();        
+                }        
+        
+        OldArea.v0=StatusWordRegister del device associato alla LineNumber, DevNumber
+
+
+__kern_kill(proc)
+        if(isBlocked(proc)){
+            outThreadQ(proc,proc->t_semAdd)
+            	__kern_V(proc->t_semAdd);
+		proc->t_semadd=NULL;	
+		softCount--;
+	}
+	procCount--
+        if (proc == currentProc){
+                currentProc = NULL;
+		scheduler();
+	}
+INTERRUPT.C
+abbiamo gia' gli interrupt disabilitati (LOADST newstate gia' settato). Poiche' vi sono priorita' di interrupt, dobbaimo fare uno switch: poi fare un ACK sulla linea di interrupt scelta ("ACK command" o un nuovo comando nel registro del device). Fare il passing up al gestore dell'interrupt singolo (da fare prima dell'ACK?).
+
+	int lineaMinima;
+	int device_causa;
+	int *addr;
+	addr=0x1000003C;
+	if (Cause.IP>=2 && Cause.IP<=7){
+		lineaMinima=min(Cause.IP);		
+		if(lineaMinima==2)
+			deviceCausa=0;
+		else
+			device_causa=Becco il primo interrupt partendo da /*addr+(LineaMinima*4)*/
+		
+	accedere alla zona mappata in memoria relativa al registro di istruzione del partico9lare device dopra selezionato e scrivere
+		il comando di ACK
+
+
+	faccioV=interruptHandlerIesimo();
+	if(faccioV){
+		unbloked=__kern_V(dev[lineacausa][devicecausa]); //Probabilmente la V andra' fatta nell InterruptHAndler
+		devBase=PIPPONE SUL PRINCOFOPRATION;
+		if (!unblocked ){
+			/*Salvo lo stato per la sys8*/	
+			statusWord=*devBase;
+			/*Se da ora in poi arriva un altro interrupt sovrascriviamo questo status..non puo' essere una buona cosa*/ 
+		}
+		else{
+		/*Metto in v0 di oldarea la statuword*/
+			unblocked->state[v0]=*devBase;	
+		}
+	}
+
+	}
+	scheduler();
+
+			
+
+InterruptHandlerPerTimer
+
+	if ((TOD-lastPseudoClockTick)==100) {
+		while(__kern_V(pseudoCLockTickSemaphore))
+			;
+	
+	
+		pseudoClockTimer->val=0; //Il semaforo non deve MAI restare a 1 altrimenti
+					//il prossimo proc che chiama la sys7 non si blocca
+
+		lastPseudoClockTick=TOD;
+	} else if((DIFFERENZA=(TOD-lastPseudoClockTick))>=95)
+		
+		TimetoWrite=100-DIFFERENZA;
+	
+	else
+		TimeToWrite=5;
+
+		setto il timer a TimeToWrite;
+	
+	scheduler();
+
+}
+
+TLB Excption: NULLA, PER ORA METTIAMO PANIC.
+
+
+
+PROGRAM TRAP Exception handler:
+
+__pgmtrap_handler(){
+
+
+	switch(Cause.ExeCode)
+	{
+
+		default:
+			PANIC();
+			break;
+		
+	}
+
+}
+

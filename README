@@ -1,0 +1,27 @@
+Project for the course of Lab.So (University of Bologna), 
+accademic year 2008/2009
+
+Developers:
+Gian Pietro Farina	      <farina@cs.unibo.it>
+Alessandro Franci         <afranci@cs.unibo.it>
+Pietro Ansaloni           <pansalon@cs.unibo.it>
+Davide Riccardo Caliendo  <caliendo@cs.unibo.it>
+
+HOW TO COMPILE AND TEST:
+
+To compile and test bohos, umps and the cross compiler must be installed;
+see http://mps.sourceforge.net/umps.html for reference.
+
+From the root directory of the project launch the command
+
+    make
+
+to compile all the sources and generate the umps necessary files;
+then , from the builds/ directory launch
+
+    umps
+
+to execute the virtual machine interface and test bohos.
+`make clean' will remove all the generated object files in kernel/
+and all the files in builds/.
+

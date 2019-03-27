@@ -1,0 +1,28 @@
+include ../Makefile.inc
+
+ALLDEPS = threadpq.o common.o p1test.o threadq.o asl.o tcb.o
+INCLUDES = -I ../h/ -I ../e/ -I /usr/include/uMPS/
+
+all: $(ALLDEPS)
+
+tcb.o:
+	$(CC) $(CCFLAGS) $(INCLUDES) tcb.c
+
+threadq.o:
+	$(CC) $(CCFLAGS) $(INCLUDES) threadq.c
+
+threadpq.o:
+	$(CC) $(CCFLAGS) $(INCLUDES) threadpq.c
+
+common.o:
+	$(CC) $(CCFLAGS) $(INCLUDES) common.c
+
+asl.o:
+	$(CC) $(CCFLAGS) $(INCLUDES) asl.c
+
+p1test.o:
+	$(CC) $(CCFLAGS) $(INCLUDES) p1test.c
+
+clean:
+	-$(RM) *.o
+

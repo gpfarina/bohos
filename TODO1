@@ -1,0 +1,4 @@
+spostare da devices.h a interrupts.h molte cose
+
+scheduler.c: Salvare lo stato del processo. Controllando tutte le cose
+appropriate. Ma lasciare l'inc del PC in syscall.c

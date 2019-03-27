@@ -1,0 +1,93 @@
+
+                    DESCRIPTION OF BohOS DATA STRUCTURES, AND PROGRAMMING CONVENTIONS
+
+
+This document explains how we implemented data structures for BohOS.
+The most important file are: tcb.c, threadp.c, threadpq.c, sem.c.
+
+In this project we adopted a very useful convention naming support functions.
+In particular all functions that aren't part of interface of the data structure
+that we had to implement are named in this way _y__X() where X is the name of
+the function and y is the name of the file where we defined the function, or an
+abbrevation for it. So we have a sort of namespace.
+
+
+We have created more file .h and .e than the file p1test.c includes. So to
+avoid some unpleasant compilation errors we just  modified the p1test.c replacing 
+the original include lines with our include lines. We can verify this launching
+a diff command. We also modified const.h and types.h, in fact we added
+some useful #define as ASHSIZE. We also eliminated the MAXPROC definition.
+In the end we have modified a bit the types.h to avoid some warnings in
+compilation phase.
+
+
+
+MANAGEMENT OF ALLOCATION AND DEALLOCATION OF TCBs.
+A tcb is a data structure that represents a thread in the higher levels.
+We mantain a global array of MAXTHREADS TCBs. This tcbs are linked all together
+in InitTcb, in order to have at the beggining a circular double linked list of 
+tcbs that is the list of free tcbs (freeTcbList)
+The allocTcb has the goal to allocate a tcb (if there is one) and to return a
+pointer to the allocated tcb. Then the function update the freeTcbList
+unlinking from that the tcb.
+
+freeTcb takes a pointer to a tcb as argument and links this tcb to the
+freeTcbList. Then let freeTcbList point to the argument so that freeTcbList  
+always points to the last freed tcb so that we have some benefits from
+principle of locality.
+
+Implementation of InitTcb, freeTcb and allocTcb is handled in tcb.c.
+
+DATA STRUCTURES FOR MANAGEMENT OF TCBs. (queues and priority queues)
+
+We have two kind of auxiliary data structures used to manage tcbs. The
+first are queues and the latter are priority queues.
+We decided to implement the first with a double linked circular list that can
+be managed with operations of creation, inserction, extraction.
+We decided to implement the queue in this way in order to have a more efficient
+access to all the element of the queue. For example in outThreadQ we have to
+remove an element starting from a pointer to the queue: not using double
+links we have to scan twice the list while with two links we can access the 
+previous and successive element in O(1).  
+
+
+The other data structure that we implemented to manage TCBs are priority queues,
+that we decided to implement with an heap, because this implementation is the
+most efficient. In fact we can have operations whose complexity is O(log n).
+The most trivial implementation of this data structure make large use of
+recursion, that is very expansive in terms of stack and time usage. So we
+decided to add a field in tcb_t that is used in a node of the heap 
+as a pointer to the father. In this way we can reach the head starting from a leaf in O(log n).
+In order to avoid a waste memory and time we decided to mantain an array of MAXTHREADS
+integers (TPQS) where we saved the number of nodes in the heap. In fact without this
+array we had to save this information in all the nodes of the heap introducing a very
+unpleasant information redundancy.
+We made an assumption that is that we cannot have more than MAXTHREADS priority queues
+in the kernel. 
+
+
+HASHING.
+
+We studied about ten hash functions. We found that that hash function
+implemented in __asl_prettyGoodHash (asl.c) has a nice output with input that 
+are integer addresses. We made this assumption: likely very often we are going to use
+array of semaphores so we are going to have a set of contiguos addresses. Starting from
+this hipotesys we test our hash functions with about 200/300 contiguos addresses and we found
+that the best output is given by __asl_prettyGoodHash with an avarage chiquadro
+of about 30-40 (where a lower value is better), while others tested functions, for example a simply 
+modular hash function or a bitwise and with a prime number in the form 2^x -1
+(where x is 5, 6, 7, 8, 9 or 10), gave us higher values.
+
+
+MANAGEMENT OF SEMPAHORES 
+
+To handle all the stuff about sempahores we mantain (in asl.c) a global array of MAXSEM
+semd_t elements, and an array of ASHSIZE semd_t *, that is our hash table. In
+fact our hash table handle inserction conflicts with linked lists.
+Function __asl_pscanListHash has the very useful task to return a pointer to a
+pointer to the position where we are going to insert an element or where is the
+element that we are searching for in the hash table.
+Because of the fact that we have all the sempahores in a double linked list we 
+mantain a global pointer that always points to a free semd_t. This pointer is
+headFreeList.
+

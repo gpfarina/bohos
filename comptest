@@ -1,0 +1,10 @@
+#!/bin/bash
+
+rm -rf /home/sh0t/chroot/home/sh0t/bohosNew
+cp -r /home/sh0t/bohosNew /home/sh0t/chroot/home/sh0t/bohosNew
+read
+cp -r /home/sh0t/chroot/home/sh0t/bohosNew/builds /home/sh0t/bohosNew
+cd /home/sh0t/bohosNew/builds
+umps
+
+
